@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.git
+.gitignore
+app_main.err.log
+app_main.out.log
+uvicorn.err.log
+uvicorn.out.log
