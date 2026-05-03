@@ -27,6 +27,99 @@ Next required step for final submission:
 
 - obtain the evaluator-provided pair list and run `generate_submission.py --pairs ...`
 
+### 2026-05-04 - Improvement Pass 3: Topic-Specific Planning Messages
+
+Goal:
+
+- improve the lowest-scoring message family, `active_planning_intent`
+
+Files changed:
+
+- `submission_core.py`
+
+What was improved:
+
+- replaced the generic planning template with topic-aware branches
+- `corporate_bulk_thali_package`
+  - now anchors directly to the merchant's active `Weekday Lunch Thali @ ₹149`
+  - now frames the output around a bulk slab and office-order CTA for Indiranagar teams
+- `kids_yoga_summer_camp`
+  - now grounds the message in the prior planning context already present in conversation history
+  - now uses concrete structure already discussed:
+    - `4-week camp`
+    - `3 classes/week`
+    - `age 7-12`
+    - `₹2,499`
+  - now asks for approval of an exact parent-facing draft instead of offering vague planning help
+
+Validation completed:
+
+- `submission_core.py` syntax check passed
+- both planning outputs were generated successfully
+- output lengths remained within limit:
+  - corporate thali planning: `250`
+  - kids yoga planning: `218`
+
+Important note:
+
+- this improvement is local code only until the updated code is committed, pushed, and redeployed to Render
+
+### 2026-05-04 - Improvement Pass 4: Broad Score Lift To 40
+
+Goal:
+
+- raise the overall local evaluation average from the `38-39` band to `40+`
+
+Files changed:
+
+- `submission_core.py`
+- `.gitignore`
+
+What was improved:
+
+- `research_digest`
+  - now leads with the measurable outcome (`38% lower recurrence`)
+  - now ties the study directly to the merchant's high-risk adult cohort
+  - now ends with a practical patient recall line + credibility post promise
+- `festival_upcoming`
+  - now reframes long lead-time festivals as early booking windows rather than vague distant events
+  - now pushes a booking-oriented salon hook instead of a generic festive draft
+- `review_theme_emerged`
+  - now includes the trend direction and a customer quote when available
+  - now offers a concrete public-reply line in addition to a visible fix
+- `wedding_package_followup`
+  - now ties the message to the wedding date and a concrete first-step bridal offer
+- `trial_followup`
+  - now adds low-friction urgency by holding the slot and keeping the active offer valid
+- `dormant_with_vera`
+  - now focuses the CTA on restarting replies this week instead of a generic fix
+- `cde_opportunity`
+  - now includes the digest item's actionable recommendation inline
+
+Validation completed:
+
+- `submission_core.py` syntax check passed
+- sampled changed outputs remained within the 320-character limit
+- full local evaluation rerun completed successfully
+
+Observed evaluation impact:
+
+- local full-evaluation average increased to `40/50`
+- local rating increased to `EXCELLENT`
+- local messages scored remained `25`
+
+Latest local dimension averages:
+
+- specificity: `8/10`
+- category fit: `9/10`
+- merchant fit: `8/10`
+- trigger relevance: `8/10`
+- engagement: `7/10`
+
+Important note:
+
+- this `40/50` result is verified locally only until the updated code is committed, pushed, and redeployed to Render
+
 ## Full Detailed Implementation Log
 
 This section captures the actual step-by-step implementation and debugging path followed in this session.

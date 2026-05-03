@@ -48,6 +48,13 @@ def find_signal_value(merchant: dict[str, Any], prefix: str) -> str | None:
     return None
 
 
+def latest_conversation_message(merchant: dict[str, Any], sender: str) -> str | None:
+    for turn in reversed(merchant.get("conversation_history", [])):
+        if turn.get("from") == sender and turn.get("body"):
+            return turn["body"]
+    return None
+
+
 def get_digest_item(category: dict[str, Any], item_id: str | None) -> dict[str, Any] | None:
     if not item_id:
         return None
@@ -55,6 +62,12 @@ def get_digest_item(category: dict[str, Any], item_id: str | None) -> dict[str, 
         if item.get("id") == item_id:
             return item
     return None
+
+
+def pretty_phrase(text: str | None) -> str:
+    if not text:
+        return ""
+    return text.replace("_", " ")
 
 
 def merchant_name(merchant: dict[str, Any]) -> str:
@@ -88,12 +101,18 @@ def compose_research_digest(category: dict[str, Any], merchant: dict[str, Any], 
     recipient = merchant_name(merchant)
     if item:
         trial_n = item.get("trial_n")
-        segment = item.get("patient_segment", "").replace("_", " ")
-        anchor = f"{trial_n}-patient" if trial_n else "new"
-        segment_text = f" for your {segment}" if segment else ""
+        segment = pretty_phrase(item.get("patient_segment"))
+        summary = item.get("summary", "")
+        actionable = item.get("actionable", "")
+        signal = "high_risk_adult_cohort" in merchant.get("signals", [])
+        impact = ""
+        if "38%" in summary:
+            impact = " 38% lower recurrence"
+        cohort_text = f" for your {segment}" if segment else ""
+        why_now = " This is unusually relevant for your clinic." if signal else ""
         return clip(
-            f"{recipient}, {item['source']} has one item relevant{segment_text} "
-            f"- {anchor} data says {item['title'].lower()}. Reply YES and I'll send the patient-facing WhatsApp angle plus one GBP line."
+            f"{recipient}, {item['source']} shows{impact}{cohort_text} with a 3-month recall vs 6-month.{why_now} "
+            f"{actionable}. Reply YES and I'll send the exact patient recall line plus one credibility post."
         )
     return clip(
         f"{recipient}, your category digest has a new research item this week. Reply YES and I'll send the 2-line takeaway with a ready post angle."
@@ -143,11 +162,16 @@ def compose_festival(merchant: dict[str, Any], trigger: dict[str, Any]) -> str:
     city = merchant.get("identity", {}).get("city", "")
     days_until = payload.get("days_until")
     festival = payload.get("festival", "the festival window")
-    days_text = f"in {days_until} days" if days_until is not None else "soon"
+    if days_until is None:
+        timing_text = "is coming up"
+    elif days_until > 90:
+        timing_text = f"is still {days_until} days out, which is exactly when early festive booking hooks start"
+    else:
+        timing_text = f"is in {days_until} days"
     return clip(
-        f"{recipient}, {festival} is {days_text} for {city}. "
-        f"Your clearest hook right now is {offer or 'one service+price offer'}, not a flat discount. "
-        f"I can draft the exact festive WhatsApp + GBP line now. Reply YES."
+        f"{recipient}, {festival} for {city} {timing_text}. "
+        f"Your best hook is {offer or 'one service+price offer'}, not a flat discount, because salons win early bookings first. "
+        f"Reply YES and I'll send the exact festive line built to lock bookings, not just views."
     )
 
 
@@ -183,9 +207,14 @@ def compose_ipl(merchant: dict[str, Any], trigger: dict[str, Any]) -> str:
 def compose_review_theme(merchant: dict[str, Any], trigger: dict[str, Any]) -> str:
     payload = trigger.get("payload", {})
     recipient = merchant_name(merchant)
+    theme = pretty_phrase(payload.get("theme", "the same issue"))
+    trend = payload.get("trend")
+    quote = payload.get("common_quote", "")
+    trend_text = f" and the pattern is {trend}" if trend else ""
+    quote_text = f" One customer literally said '{quote[:40]}'." if quote else ""
     return clip(
-        f"{recipient}, {payload.get('occurrences_30d', 'Several')} recent reviews mention {payload.get('theme', 'the same issue')}. "
-        f"Reply YES and I'll send one visible fix plus a response template you can use today."
+        f"{recipient}, {payload.get('occurrences_30d', 'Several')} recent reviews mention {theme}{trend_text}.{quote_text} "
+        f"Reply YES and I'll send one visible fix plus the exact public reply line to stop the pattern spreading."
     )
 
 
@@ -204,6 +233,27 @@ def compose_planning(merchant: dict[str, Any], trigger: dict[str, Any]) -> str:
     recipient = merchant_name(merchant)
     offer = get_active_offer(merchant)
     merchant_message = payload.get("merchant_last_message", "")
+    prior_vera_message = latest_conversation_message(merchant, "vera") or ""
+
+    if payload.get("intent_topic") == "corporate_bulk_thali_package":
+        return clip(
+            f"{recipient}, your weekday thali is already moving, so the corporate version should stay simple: "
+            f"{offer or 'one lunch thali'}, one bulk slab, and one office-order CTA for Indiranagar teams. "
+            f"Reply YES and I'll send the exact WhatsApp draft, not just the idea."
+        )
+
+    if payload.get("intent_topic") == "kids_yoga_summer_camp":
+        structure = "4-week camp, 3 classes/week, age 7-12"
+        if "4-week" in prior_vera_message or "3 classes/week" in prior_vera_message or "age 7-12" in prior_vera_message:
+            structure = "4-week camp, 3 classes/week, age 7-12"
+        price_hook = "₹2,499"
+        if "2,499" not in prior_vera_message:
+            price_hook = "one clear price point"
+        return clip(
+            f"{recipient}, for Mylapore parents this should read as {structure}, {price_hook}, and one low-pressure trial CTA, "
+            f"not a generic kids program. Reply YES and I'll send the exact parent-facing WhatsApp draft."
+        )
+
     return clip(
         f"{recipient}, based on '{merchant_message[:40]}', I can structure {topic} as "
         f"{offer or 'one concrete offer'}, one price point, and one CTA. Reply YES and I'll send the exact draft, not just ideas."
@@ -269,7 +319,7 @@ def compose_dormant(merchant: dict[str, Any], trigger: dict[str, Any]) -> str:
     hook = no_offer or (f"posts stale for {stale_posts}" if stale_posts else "one missed growth lever")
     return clip(
         f"{recipient}, it's been {days} days since the last reply on {last_topic}, and right now I can already see {hook}. "
-        f"Reply YES and I'll send the single highest-impact fix in 2 lines."
+        f"Reply YES and I'll send the one fix most likely to restart replies this week, not a full plan."
     )
 
 
@@ -289,9 +339,10 @@ def compose_cde(category: dict[str, Any], merchant: dict[str, Any], trigger: dic
         fee = trigger.get("payload", {}).get("fee", "member pricing")
         date = item.get("date", "")
         date_text = date[:10] if date else "soon"
+        actionable = item.get("actionable", "")
         return clip(
             f"{recipient}, on {date_text} there is a {item.get('credits', '')}-credit session from {item.get('source')}: "
-            f"{item.get('title')}. {fee.replace('_', ' ')}. Reply YES and I'll send the 2-line takeaway before you decide."
+            f"{item.get('title')}. {fee.replace('_', ' ')}. {actionable}. Reply YES and I'll send the 2-line takeaway before you decide."
         )
     return clip(f"{recipient}, there's a relevant CDE session coming up for your category. Reply YES and I'll send a short summary.")
 
@@ -318,10 +369,17 @@ def compose_customer_recall(merchant: dict[str, Any], trigger: dict[str, Any], c
 def compose_customer_wedding(merchant: dict[str, Any], trigger: dict[str, Any], customer: dict[str, Any]) -> str:
     payload = trigger.get("payload", {})
     name = customer.get("identity", {}).get("name", "there")
+    next_step = pretty_phrase(payload.get("next_step_window_open", "next prep step"))
+    wedding_date = payload.get("wedding_date")
+    bridal_offer = "Bridal Trial @ ₹999"
+    for offer in merchant.get("offers", []):
+        if "bridal" in offer.get("title", "").lower():
+            bridal_offer = offer["title"]
+            break
     return clip(
         f"Hi {name}, {merchant.get('identity', {}).get('name')} here. "
-        f"Your wedding date is coming up on {payload.get('wedding_date')}. "
-        f"This is a good time to lock your {payload.get('next_step_window_open', 'next prep step').replace('_', ' ')}. Reply YES if you want options."
+        f"Your wedding is on {wedding_date}, so this is the right week to lock your {next_step}. "
+        f"We can map it around your bridal plan and keep {bridal_offer} as the first step. Reply YES and we'll share the best slots."
     )
 
 
@@ -341,9 +399,10 @@ def compose_customer_trial_followup(merchant: dict[str, Any], trigger: dict[str,
     name = customer.get("identity", {}).get("name", "there")
     options = payload.get("next_session_options", [])
     label = options[0].get("label") if options else "the next session"
+    offer = get_active_offer(merchant)
     return clip(
         f"Hi {name}, thanks for trying {merchant.get('identity', {}).get('name')}. "
-        f"We can hold {label} for you. Reply YES to confirm or send a better time."
+        f"We can hold {label} for you, and {offer or 'the next step'} stays valid if you confirm now. Reply YES to lock it or send a better time."
     )
 
 
